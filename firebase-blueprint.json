@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "ProductListing": {
+      "title": "ProductListing",
+      "description": "A student marketplace product listing synchronized to Firestore.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the student seller who owns this listing."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the product listed for sale."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price of the item in Naira (NGN)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description and condition notes for the product."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the product image."
+        },
+        "category": {
+          "type": "string",
+          "description": "Product category."
+        },
+        "campus": {
+          "type": "string",
+          "description": "University campus for the listing."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ACTIVE", "SOLD", "ARCHIVED"],
+          "description": "Lifecycle status of the product listing."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp (clients must submit FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp (clients must submit FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "price",
+        "description",
+        "imageUrl",
+        "category",
+        "campus",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/ProductListing"
+      },
+      "description": "Collection of student marketplace product listings."
+    }
+  }
+}

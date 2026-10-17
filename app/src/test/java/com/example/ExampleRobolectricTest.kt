@@ -505,4 +505,27 @@ class ExampleRobolectricTest {
         val errorMsg = directUpdateResult.exceptionOrNull()?.message ?: ""
         assertTrue(errorMsg.contains("Customers cannot directly mark an order as PAID"))
     }
+
+    @Test
+    fun `Product Room entity persists title price description and imageUrl`() = runBlocking {
+        val newProduct = Product(
+            id = "prod_student_listing_01",
+            name = "Engineering Drawing Kit",
+            title = "Engineering Drawing Kit",
+            price = 6500.0,
+            description = "Complete set of compasses, rulers, and T-square in great condition.",
+            imageUrl = "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600"
+        )
+        database.marketplaceDao().insertProduct(newProduct)
+
+        val fetched = database.marketplaceDao().getProductDirect("prod_student_listing_01")
+        assertNotNull(fetched)
+        assertEquals("Engineering Drawing Kit", fetched!!.title)
+        assertEquals("Engineering Drawing Kit", fetched.name)
+        assertEquals(6500.0, fetched.price, 0.01)
+        assertEquals("Complete set of compasses, rulers, and T-square in great condition.", fetched.description)
+        assertEquals("https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600", fetched.imageUrl)
+    }
 }
+
+

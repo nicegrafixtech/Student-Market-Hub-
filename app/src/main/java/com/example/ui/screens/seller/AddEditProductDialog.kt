@@ -1,6 +1,5 @@
 package com.example.ui.screens.seller
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,6 +7,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +31,7 @@ fun AddEditProductDialog(
         description: String,
         price: Double,
         discountPrice: Double?,
+        imageUrl: String,
         category: String,
         condition: String,
         quantity: Int,
@@ -43,14 +44,13 @@ fun AddEditProductDialog(
     var description by remember { mutableStateOf(initialProduct?.description ?: "") }
     var priceText by remember { mutableStateOf(initialProduct?.price?.toString() ?: "") }
     var discountPriceText by remember { mutableStateOf(initialProduct?.discountPrice?.toString() ?: "") }
+    var imageUrl by remember { mutableStateOf(initialProduct?.imageUrl ?: "") }
     var category by remember { mutableStateOf(initialProduct?.category ?: "Phones & Accessories") }
     var condition by remember { mutableStateOf(initialProduct?.condition ?: "Brand New") }
     var quantityText by remember { mutableStateOf(initialProduct?.quantity?.toString() ?: "1") }
     var iconEmoji by remember { mutableStateOf(initialProduct?.iconEmoji ?: "📦") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val categories = listOf("Phones & Accessories", "Books & Stationery", "Shoes & Bags", "Fashion", "Electronics", "Beauty & Care", "Hostel Essentials")
-    val conditions = listOf("Brand New", "Like New", "Fairly Used")
     val emojis = listOf("📦", "🎧", "📚", "👟", "🔋", "💻", "👗", "🎒", "⚡", "👕")
 
     Dialog(onDismissRequest = onDismiss) {
@@ -92,7 +92,9 @@ fun AddEditProductDialog(
                     label = { Text("Product Title") },
                     placeholder = { Text("e.g. Calculus Textbook, Power Bank") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dialog_product_title_input")
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -107,7 +109,9 @@ fun AddEditProductDialog(
                         label = { Text("Price (₦)") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("dialog_product_price_input")
                     )
                     OutlinedTextField(
                         value = discountPriceText,
@@ -122,16 +126,31 @@ fun AddEditProductDialog(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description & Condition Details") },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
+                    value = imageUrl,
+                    onValueChange = { imageUrl = it },
+                    label = { Text("Image URL") },
+                    placeholder = { Text("https://images.unsplash.com/...") },
+                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dialog_product_image_url_input")
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Emoji Picker Row
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description & Condition Details") },
+                    maxLines = 3,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dialog_product_description_input")
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Text("Select Icon / Motif", fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
@@ -171,13 +190,16 @@ fun AddEditProductDialog(
                         } else if (p == null || p <= 0) {
                             errorMessage = "Please enter a valid price in Naira"
                         } else {
-                            onSave(name, description, p, dp, category, condition, q, defaultCampus, iconEmoji)
+                            onSave(name.trim(), description.trim(), p, dp, imageUrl.trim(), category, condition, q, defaultCampus, iconEmoji)
                             onDismiss()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("dialog_save_product_button")
                 ) {
                     Text(
                         if (initialProduct == null) "Publish to Marketplace" else "Save Changes",

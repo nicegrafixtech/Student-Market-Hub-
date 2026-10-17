@@ -14,11 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.model.Product
 import com.example.data.model.Review
 import com.example.ui.theme.*
@@ -36,7 +38,6 @@ fun ProductDetailSheet(
 ) {
     var reviewRating by remember { mutableStateOf(5) }
     var reviewComment by remember { mutableStateOf("") }
-    var isSubmittingReview by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -60,7 +61,16 @@ fun ProductDetailSheet(
                         .background(BackgroundLight),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(product.iconEmoji, fontSize = 72.sp)
+                    if (product.imageUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = product.imageUrl,
+                            contentDescription = product.title.ifBlank { product.name },
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Text(product.iconEmoji, fontSize = 72.sp)
+                    }
 
                     Surface(
                         color = BrandNavy.copy(alpha = 0.85f),
@@ -84,7 +94,7 @@ fun ProductDetailSheet(
             item {
                 Column {
                     Text(
-                        text = product.name,
+                        text = product.title.ifBlank { product.name },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black,
                         color = BrandNavy

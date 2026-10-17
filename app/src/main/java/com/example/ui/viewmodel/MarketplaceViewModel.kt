@@ -3,6 +3,7 @@ package com.example.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.auth.AuthManager
+import com.example.data.firestore.FirestoreProductRepository
 import com.example.data.model.*
 import com.example.data.order.OrderStatus
 import com.example.data.repository.MarketplaceRepository
@@ -14,7 +15,8 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class MarketplaceViewModel(
     private val repository: MarketplaceRepository,
-    val authManager: AuthManager
+    val authManager: AuthManager,
+    private val firestoreProductRepository: FirestoreProductRepository? = null
 ) : ViewModel() {
 
     init {
@@ -40,6 +42,15 @@ class MarketplaceViewModel(
 
     fun switchRole(newRole: UserRole) {
         _userProfile.value = _userProfile.value.copy(role = newRole)
+    }
+
+    fun syncAuthenticatedGoogleUser() {
+        val fbUser = authManager.getFirebaseUser() ?: return
+        _userProfile.value = _userProfile.value.copy(
+            id = fbUser.uid,
+            email = fbUser.email ?: _userProfile.value.email,
+            fullName = fbUser.displayName?.takeIf { it.isNotBlank() } ?: _userProfile.value.fullName
+        )
     }
 
     // Search and Category Filters
@@ -79,6 +90,7 @@ class MarketplaceViewModel(
     ) { products, query, category, campus ->
         products.filter { p ->
             val matchesQuery = query.isBlank() ||
+                    p.title.contains(query, ignoreCase = true) ||
                     p.name.contains(query, ignoreCase = true) ||
                     p.description.contains(query, ignoreCase = true) ||
                     p.category.contains(query, ignoreCase = true) ||
@@ -184,7 +196,8 @@ class MarketplaceViewModel(
         condition: String,
         quantity: Int,
         campus: String,
-        emoji: String
+        emoji: String,
+        imageUrl: String = ""
     ) {
         viewModelScope.launch {
             val store = sellerStore.value
@@ -194,6 +207,7 @@ class MarketplaceViewModel(
                 storeId = store?.id ?: "store_unilag_femzy",
                 storeName = store?.name ?: "Femzy Gadgets",
                 name = name,
+                title = name,
                 description = description,
                 price = price,
                 discountPrice = discountPrice,
@@ -201,9 +215,21 @@ class MarketplaceViewModel(
                 condition = condition,
                 quantity = quantity,
                 campus = campus,
-                iconEmoji = emoji
+                iconEmoji = emoji,
+                imageUrl = imageUrl
             )
             repository.insertProduct(prod)
+
+            if (authManager.isUserSignedIn()) {
+                firestoreProductRepository?.createProductListing(
+                    title = name,
+                    price = price,
+                    description = description,
+                    imageUrl = imageUrl,
+                    category = category,
+                    campus = campus
+                )
+            }
         }
     }
 

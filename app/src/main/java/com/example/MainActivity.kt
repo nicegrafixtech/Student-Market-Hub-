@@ -14,13 +14,16 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.auth.AuthManager
+import com.example.data.firestore.FirestoreProductRepository
 import com.example.data.local.AppDatabase
 import com.example.data.model.Product
 import com.example.data.model.UserRole
@@ -31,6 +34,7 @@ import com.example.ui.components.StudentAuthDialog
 import com.example.ui.screens.admin.AdminDashboardScreen
 import com.example.ui.screens.customer.*
 import com.example.ui.screens.seller.AddEditProductDialog
+import com.example.ui.screens.seller.ListNewProductScreen
 import com.example.ui.screens.seller.SellerDashboardScreen
 import com.example.ui.theme.BrandNavy
 import com.example.ui.theme.BrandOrange
@@ -47,18 +51,34 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme {
                 val context = LocalContext.current
+                val scope = rememberCoroutineScope()
                 val database = remember { AppDatabase.getDatabase(context) }
                 val authManager = remember { AuthManager(context) }
+                val firestoreProductRepository = remember {
+                    try {
+                        FirestoreProductRepository(context)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
                 val repository = remember { MarketplaceRepository(database.marketplaceDao()) }
 
                 val viewModel: MarketplaceViewModel = viewModel(
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                            return MarketplaceViewModel(repository, authManager) as T
+                            return MarketplaceViewModel(repository, authManager, firestoreProductRepository) as T
                         }
                     }
                 )
+
+                LaunchedEffect(Unit) {
+                    authManager.attemptAutoSignIn(
+                        activityContext = context,
+                        scope = scope,
+                        onAuthSuccess = { viewModel.syncAuthenticatedGoogleUser() }
+                    )
+                }
 
                 MarketplaceApp(viewModel)
             }
@@ -70,6 +90,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MarketplaceApp(viewModel: MarketplaceViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
@@ -98,8 +119,33 @@ fun MarketplaceApp(viewModel: MarketplaceViewModel) {
 
     var customerTab by remember { mutableStateOf(CustomerTab.MARKETPLACE) }
     var showAuthDialog by remember { mutableStateOf(false) }
+    var showListNewProductScreen by remember { mutableStateOf(false) }
     var showAddEditProductDialog by remember { mutableStateOf(false) }
     var productToEdit by remember { mutableStateOf<Product?>(null) }
+
+    if (showListNewProductScreen) {
+        ListNewProductScreen(
+            defaultCampus = selectedCampus,
+            onPublishProduct = { title, desc, price, discount, imageUrl, cat, cond, qty, campus, emoji ->
+                viewModel.addProduct(
+                    name = title,
+                    description = desc,
+                    price = price,
+                    discountPrice = discount,
+                    category = cat,
+                    condition = cond,
+                    quantity = qty,
+                    campus = campus,
+                    emoji = emoji,
+                    imageUrl = imageUrl
+                )
+                showListNewProductScreen = false
+                Toast.makeText(context, "Product listed on marketplace!", Toast.LENGTH_SHORT).show()
+            },
+            onBack = { showListNewProductScreen = false }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -135,12 +181,24 @@ fun MarketplaceApp(viewModel: MarketplaceViewModel) {
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
+        },
+        floatingActionButton = {
+            if (userProfile.role == UserRole.CUSTOMER && customerTab == CustomerTab.MARKETPLACE) {
+                ExtendedFloatingActionButton(
+                    onClick = { showListNewProductScreen = true },
+                    containerColor = BrandOrange,
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Default.Add, contentDescription = "List Item for Sale") },
+                    text = { Text("Sell Item", fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("open_list_product_screen_fab")
+                )
+            }
         },
         bottomBar = {
             if (userProfile.role == UserRole.CUSTOMER) {
-                NavigationBar(containerColor = androidx.compose.ui.graphics.Color.White) {
+                NavigationBar(containerColor = Color.White) {
                     NavigationBarItem(
                         selected = customerTab == CustomerTab.MARKETPLACE,
                         onClick = { customerTab = CustomerTab.MARKETPLACE },
@@ -173,7 +231,7 @@ fun MarketplaceApp(viewModel: MarketplaceViewModel) {
                     )
                 }
             } else {
-                NavigationBar(containerColor = androidx.compose.ui.graphics.Color.White) {
+                NavigationBar(containerColor = Color.White) {
                     NavigationBarItem(
                         selected = true,
                         onClick = {},
@@ -268,8 +326,9 @@ fun MarketplaceApp(viewModel: MarketplaceViewModel) {
                                 onRoleChange = { viewModel.switchRole(it) },
                                 onOpenAuthDialog = { showAuthDialog = true },
                                 onSignOut = {
-                                    viewModel.authManager.signOut()
-                                    Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+                                    viewModel.authManager.signOut(scope) {
+                                        Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             )
                         }
@@ -282,8 +341,7 @@ fun MarketplaceApp(viewModel: MarketplaceViewModel) {
                         orders = sellerOrders,
                         subscription = sellerSubscription,
                         onAddProductClick = {
-                            productToEdit = null
-                            showAddEditProductDialog = true
+                            showListNewProductScreen = true
                         },
                         onEditProductClick = {
                             productToEdit = it
@@ -371,17 +429,19 @@ fun MarketplaceApp(viewModel: MarketplaceViewModel) {
                 AddEditProductDialog(
                     initialProduct = productToEdit,
                     defaultCampus = selectedCampus,
-                    onSave = { name, desc, price, discount, cat, cond, qty, campus, emoji ->
+                    onSave = { name, desc, price, discount, imageUrl, cat, cond, qty, campus, emoji ->
                         if (productToEdit == null) {
-                            viewModel.addProduct(name, desc, price, discount, cat, cond, qty, campus, emoji)
+                            viewModel.addProduct(name, desc, price, discount, cat, cond, qty, campus, emoji, imageUrl)
                             Toast.makeText(context, "Product listed on marketplace!", Toast.LENGTH_SHORT).show()
                         } else {
                             viewModel.updateProduct(
                                 productToEdit!!.copy(
                                     name = name,
+                                    title = name,
                                     description = desc,
                                     price = price,
                                     discountPrice = discount,
+                                    imageUrl = imageUrl,
                                     category = cat,
                                     condition = cond,
                                     quantity = qty,
@@ -396,18 +456,14 @@ fun MarketplaceApp(viewModel: MarketplaceViewModel) {
                 )
             }
 
-            // Auth Dialog
+            // Auth Dialog (Google Sign-In via Credential Manager)
             StudentAuthDialog(
                 isOpen = showAuthDialog,
+                authManager = viewModel.authManager,
                 onDismiss = { showAuthDialog = false },
-                onEmailRegister = { email, pass, name, campus ->
-                    // Auth handling
-                },
-                onEmailSignIn = { email, pass ->
-                    // Auth handling
-                },
-                onGoogleSignIn = {
-                    // Google Sign-In handling
+                onAuthSuccess = {
+                    viewModel.syncAuthenticatedGoogleUser()
+                    Toast.makeText(context, "Signed in with Google!", Toast.LENGTH_SHORT).show()
                 }
             )
         }

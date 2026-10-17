@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidProductListing(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             (data.price is int || data.price is float) && data.price > 0 && data.price <= 100000000 &&
+             data.description is string && data.description.size() >= 1 && data.description.size() <= 2000 &&
+             data.imageUrl is string && data.imageUrl.size() <= 1000 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 100 &&
+             data.campus is string && data.campus.size() >= 1 && data.campus.size() <= 150 &&
+             data.status is string && (data.status == 'ACTIVE' || data.status == 'SOLD' || data.status == 'ARCHIVED');
+    }
+
+    match /products/{productId} {
+      allow get: if isSignedIn() && isValidId(productId) && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(productId) &&
+                       incoming().keys().hasAll(['userId', 'title', 'price', 'description', 'imageUrl', 'category', 'campus', 'status', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'title', 'price', 'description', 'imageUrl', 'category', 'campus', 'status', 'createdAt', 'updatedAt']) &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       isValidProductListing(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(productId) &&
+                       isValidProductListing(incoming()) &&
+                       existing().userId == request.auth.uid &&
+                       existing().status != 'ARCHIVED' &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'price', 'description', 'imageUrl', 'category', 'campus', 'status', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(productId) && existing().userId == request.auth.uid;
+    }
+  }
+}
