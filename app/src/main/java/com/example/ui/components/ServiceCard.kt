@@ -23,7 +23,8 @@ import java.util.Locale
 @Composable
 fun ServiceCard(
     service: ServiceItem,
-    onContact: () -> Unit,
+    onContact: () -> Unit = {},
+    onBookClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -113,7 +114,7 @@ fun ServiceCard(
                 }
 
                 OutlinedButton(
-                    onClick = onContact,
+                    onClick = { onBookClick?.invoke() ?: onContact() },
                     shape = RoundedCornerShape(6.dp),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                     modifier = Modifier.height(30.dp)
