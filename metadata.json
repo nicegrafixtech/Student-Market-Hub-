@@ -1,0 +1,6 @@
+{
+  "name": "Student Market Hub",
+  "description": "The Nigerian student marketplace for buying, selling, offering services, and growing student businesses.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
